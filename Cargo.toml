@@ -15,15 +15,12 @@ resolver = "2"
 
 [workspace.dependencies]
 solochain-template-runtime = { path = "./runtime", default-features = false }
-pallet-template = { path = "./pallets/template", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "46.1.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.7.0", default-features = false }
 frame-system = { version = "39.1.0", default-features = false }
 futures = { version = "0.3.31" }
 jsonrpsee = { version = "0.24.3" }
-pallet-transaction-payment = { version = "39.1.0", default-features = false }
-pallet-transaction-payment-rpc = { version = "42.0.0", default-features = false }
 sc-basic-authorship = { version = "0.48.0", default-features = false }
 sc-cli = { version = "0.50.1", default-features = false }
 sc-client-api = { version = "38.0.0", default-features = false }
@@ -63,7 +60,6 @@ pallet-aura = { version = "38.1.0", default-features = false }
 pallet-balances = { version = "40.1.0", default-features = false }
 pallet-grandpa = { version = "39.1.0", default-features = false }
 pallet-timestamp = { version = "38.0.0", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { version = "39.0.0", default-features = false }
 scale-info = { version = "2.11.1", default-features = false }
 sp-offchain = { version = "35.0.0", default-features = false }
 sp-session = { version = "37.0.0", default-features = false }

@@ -155,7 +155,6 @@ pub type TxExtension = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
-	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 	frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
 );
 
@@ -214,11 +213,6 @@ mod runtime {
 	#[runtime::pallet_index(4)]
 	pub type Balances = pallet_balances;
 
-	#[runtime::pallet_index(5)]
-	pub type TransactionPayment = pallet_transaction_payment;
 
 
-	// Include the custom logic from the pallet-template in the runtime.
-	#[runtime::pallet_index(7)]
-	pub type Template = pallet_template;
 }
