@@ -217,8 +217,6 @@ mod runtime {
 	#[runtime::pallet_index(5)]
 	pub type TransactionPayment = pallet_transaction_payment;
 
-	#[runtime::pallet_index(6)]
-	pub type Sudo = pallet_sudo;
 
 	// Include the custom logic from the pallet-template in the runtime.
 	#[runtime::pallet_index(7)]
