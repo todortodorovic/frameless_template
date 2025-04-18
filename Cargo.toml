@@ -15,6 +15,7 @@ resolver = "2"
 [workspace.dependencies]
 solochain-template-runtime = { path = "./runtime", default-features = false }
 clap = { version = "4.5.13" }
+frame-benchmarking-cli = { version = "46.1.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.7.0", default-features = false }
 frame-system = { version = "39.1.0", default-features = false }
 futures = { version = "0.3.31" }
@@ -48,8 +49,10 @@ sp-timestamp = { version = "35.0.0", default-features = false }
 substrate-frame-rpc-system = { version = "42.0.0", default-features = false }
 substrate-build-script-utils = { version = "11.0.0", default-features = false }
 codec = { version = "3.6.12", default-features = false, package = "parity-scale-codec" }
+frame-benchmarking = { version = "39.0.0", default-features = false }
 frame-executive = { version = "39.1.0", default-features = false }
 frame-support = { version = "39.1.0", default-features = false }
+frame-system-benchmarking = { version = "39.0.0", default-features = false }
 frame-system-rpc-runtime-api = { version = "35.0.0", default-features = false }
 frame-try-runtime = { version = "0.45.0", default-features = false }
 pallet-aura = { version = "38.1.0", default-features = false }
