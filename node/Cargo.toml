@@ -3,10 +3,10 @@ name = "solochain-template-node"
 description = "A solochain node template built with Substrate, part of Polkadot Sdk."
 version = "0.1.0"
 license = "Unlicense"
-authors.workspace = true
-homepage.workspace = true
-repository.workspace = true
-edition.workspace = true
+authors = ["Parity Technologies <admin@parity.io>"]
+homepage = "https://paritytech.github.io/polkadot-sdk/"
+repository = "https://github.com/paritytech/polkadot-sdk-solochain-template.git"
+edition = "2021"
 publish = false
 
 build = "build.rs"
@@ -15,72 +15,43 @@ build = "build.rs"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-clap = { features = ["derive"], workspace = true }
-futures = { features = ["thread-pool"], workspace = true }
-serde_json = { workspace = true, default-features = true }
-jsonrpsee = { features = ["server"], workspace = true }
-sc-cli.workspace = true
-sc-cli.default-features = true
-sp-core.workspace = true
-sp-core.default-features = true
-sc-executor.workspace = true
-sc-executor.default-features = true
-sc-network.workspace = true
-sc-network.default-features = true
-sc-service.workspace = true
-sc-service.default-features = true
-sc-telemetry.workspace = true
-sc-telemetry.default-features = true
-sc-transaction-pool.workspace = true
-sc-transaction-pool.default-features = true
-sc-transaction-pool-api.workspace = true
-sc-transaction-pool-api.default-features = true
-sc-offchain.workspace = true
-sc-offchain.default-features = true
-sc-consensus.workspace = true
-sc-consensus.default-features = true
-sc-consensus-aura.workspace = true
-sc-consensus-aura.default-features = true
-sp-consensus-aura.workspace = true
-sp-consensus-aura.default-features = true
-sc-consensus-grandpa.workspace = true
-sc-consensus-grandpa.default-features = true
-sp-consensus-grandpa.workspace = true
-sp-consensus-grandpa.default-features = true
-sp-genesis-builder.workspace = true
-sp-genesis-builder.default-features = true
-sc-client-api.workspace = true
-sc-client-api.default-features = true
-sc-basic-authorship.workspace = true
-sc-basic-authorship.default-features = true
-sp-runtime.workspace = true
-sp-runtime.default-features = true
-sp-io.workspace = true
-sp-io.default-features = true
-sp-timestamp.workspace = true
-sp-timestamp.default-features = true
-sp-inherents.workspace = true
-sp-inherents.default-features = true
-sp-keyring.workspace = true
-sp-keyring.default-features = true
-sp-api.workspace = true
-sp-api.default-features = true
-sp-blockchain.workspace = true
-sp-blockchain.default-features = true
-sp-block-builder.workspace = true
-sp-block-builder.default-features = true
-frame-system.workspace = true
-frame-system.default-features = true
-frame-metadata-hash-extension.workspace = true
-frame-metadata-hash-extension.default-features = true
+clap = { version = "4.5.13", features = ["derive"] }
+futures = { version = "0.3.31", features = ["thread-pool"] }
+serde_json = { version = "1.0.132", default-features = true }
+jsonrpsee = { version = "0.24.3", features = ["server"] }
+sc-cli = { version = "0.50.1", default-features = true }
+sp-core = { version = "35.0.0", default-features = true }
+sc-executor = { version = "0.41.0", default-features = true }
+sc-network = { version = "0.48.3", default-features = true }
+sc-service = { version = "0.49.0", default-features = true }
+sc-telemetry = { version = "28.0.0", default-features = true }
+sc-transaction-pool = { version = "38.1.0", default-features = true }
+sc-transaction-pool-api = { version = "38.1.0", default-features = true }
+sc-offchain = { version = "43.0.0", default-features = true }
+sc-consensus = { version = "0.47.0", default-features = true }
+sc-consensus-aura = { version = "0.48.0", default-features = true }
+sp-consensus-aura = { version = "0.41.0", default-features = true }
+sc-consensus-grandpa = { version = "0.33.0", default-features = true }
+sp-consensus-grandpa = { version = "22.0.0", default-features = true }
+sp-genesis-builder = { version = "0.16.0", default-features = true }
+sc-client-api = { version = "38.0.0", default-features = true }
+sc-basic-authorship = { version = "0.48.0", default-features = true }
+sp-runtime = { version = "40.1.0", default-features = true }
+sp-io = { version = "39.0.0", default-features = true }
+sp-timestamp = { version = "35.0.0", default-features = true }
+sp-inherents = { version = "35.0.0", default-features = true }
+sp-keyring = { version = "40.0.0", default-features = true }
+sp-api = { version = "35.0.0", default-features = true }
+sp-blockchain = { version = "38.0.0", default-features = true }
+sp-block-builder = { version = "35.0.0", default-features = true }
+frame-system = { version = "39.1.0", default-features = true }
+frame-metadata-hash-extension = { version = "0.7.0", default-features = true }
 
-substrate-frame-rpc-system.workspace = true
-substrate-frame-rpc-system.default-features = true
-solochain-template-runtime.workspace = true
+substrate-frame-rpc-system = { version = "42.0.0", default-features = true }
+solochain-template-runtime = { path = "../runtime" }
 
 [build-dependencies]
-substrate-build-script-utils.workspace = true
-substrate-build-script-utils.default-features = true
+substrate-build-script-utils = { version = "11.0.0", default-features = true }
 
 [features]
 default = ["std"]
