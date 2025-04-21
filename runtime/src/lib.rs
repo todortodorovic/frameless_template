@@ -3,214 +3,430 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-pub mod apis;
-pub mod configs;
-
-extern crate alloc;
-use alloc::vec::Vec;
+use parity_scale_codec::{Decode, Encode};
+use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_runtime::Vec;
+use log::info;
+use scale_info::prelude::vec;
+use sp_runtime::ExtrinsicInclusionMode;
+use scale_info::TypeInfo;
+use sp_version::StateVersion;
+use sp_api::{impl_runtime_apis,};
 use sp_runtime::{
-	generic, impl_opaque_keys,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
-	MultiAddress, MultiSignature,
+	create_runtime_str,
+	generic::{self},
+	impl_opaque_keys,
+	traits::{BlakeTwo256, Block as BlockT, Extrinsic, MaybeSerialize, MaybeSerializeDeserialize,Hash},
+	transaction_validity::{
+		InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
+		ValidTransaction,
+	},
+	ApplyExtrinsicResult, BoundToRuntimeAppPublic,
 };
+#[cfg(feature = "std")]
+use sp_storage::well_known_keys;
+
+#[cfg(any(feature = "std", test))]
+use sp_runtime::{BuildStorage, Storage};
+
+use sp_core::{hexdisplay::HexDisplay, OpaqueMetadata, H256};
+
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-pub use frame_system::Call as SystemCall;
-pub use pallet_balances::Call as BalancesCall;
-pub use pallet_timestamp::Call as TimestampCall;
-#[cfg(any(feature = "std", test))]
-pub use sp_runtime::BuildStorage;
-
-pub mod genesis_config_presets;
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
-/// to even the core data structures.
+/// to even the core datas-tructures.
 pub mod opaque {
 	use super::*;
-	use sp_runtime::{
-		generic,
-		traits::{BlakeTwo256, Hash as HashT},
-	};
-
-	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
+	type OpaqueExtrinsic = BasicExtrinsic;
 
 	/// Opaque block header type.
 	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	/// Opaque block type.
-	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-	/// Opaque block identifier type.
-	pub type BlockId = generic::BlockId<Block>;
-	/// Opaque block hash type.
-	pub type Hash = <BlakeTwo256 as HashT>::Output;
-}
+	pub type Block = generic::Block<Header, OpaqueExtrinsic>;
 
-impl_opaque_keys! {
-	pub struct SessionKeys {
-		pub aura: Aura,
-		pub grandpa: Grandpa,
+	// This part is necessary for generating session keys in the runtime
+	impl_opaque_keys! {
+		pub struct SessionKeys {
+			pub aura: AuraAppPublic,
+			pub grandpa: GrandpaAppPublic,
+		}
+	}
+
+	// Typically these are not implemented manually, but rather for the pallet associated with the
+	// keys. Here we are not using the pallets, and these implementations are trivial, so we just
+	// re-write them.
+	pub struct AuraAppPublic;
+	impl BoundToRuntimeAppPublic for AuraAppPublic {
+		type Public = AuraId;
+	}
+
+	pub struct GrandpaAppPublic;
+	impl BoundToRuntimeAppPublic for GrandpaAppPublic {
+		type Public = sp_consensus_grandpa::AuthorityId;
 	}
 }
 
-// To learn more about runtime versioning, see:
-// https://docs.substrate.io/main-docs/build/upgrade#runtime-versioning
-#[sp_version::runtime_version]
+/// This runtime version.
+///ovo dole odkomentarisati
+///#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: alloc::borrow::Cow::Borrowed("solochain-template-runtime"),
-	impl_name: alloc::borrow::Cow::Borrowed("solochain-template-runtime"),
+	spec_name: create_runtime_str!("frameless-runtime"),
+	impl_name: create_runtime_str!("frameless-runtime"),
 	authoring_version: 1,
-	// The version of the runtime specification. A full node will not attempt to use its native
-	//   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
-	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
-	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 1,
 	impl_version: 1,
-	apis: apis::RUNTIME_API_VERSIONS,
+	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
 	system_version: 1,
 };
 
-mod block_times {
-	/// This determines the average expected block time that we are targeting. Blocks will be
-	/// produced at a minimum duration defined by `SLOT_DURATION`. `SLOT_DURATION` is picked up by
-	/// `pallet_timestamp` which is in turn picked up by `pallet_aura` to implement `fn
-	/// slot_duration()`.
-	///
-	/// Change this to adjust the block time.
-	pub const MILLI_SECS_PER_BLOCK: u64 = 6000;
-
-	// NOTE: Currently it is not possible to change the slot duration after the chain has started.
-	// Attempting to do so will brick block production.
-	pub const SLOT_DURATION: u64 = MILLI_SECS_PER_BLOCK;
-}
-pub use block_times::*;
-
-// Time is measured by number of blocks.
-pub const MINUTES: BlockNumber = 60_000 / (MILLI_SECS_PER_BLOCK as BlockNumber);
-pub const HOURS: BlockNumber = MINUTES * 60;
-pub const DAYS: BlockNumber = HOURS * 24;
-
-pub const BLOCK_HASH_COUNT: BlockNumber = 2400;
-
-// Unit = the base number of indivisible units for balances
-pub const UNIT: Balance = 1_000_000_000_000;
-pub const MILLI_UNIT: Balance = 1_000_000_000;
-pub const MICRO_UNIT: Balance = 1_000_000;
-
-/// Existential deposit.
-pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT;
-
-/// The version information used to identify this runtime when compiled natively.
+/// The version infromation used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
+/// The type that provides the genesis storage values for a new chain
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
+pub struct GenesisConfig;
 
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+#[cfg(feature = "std")]
+impl BuildStorage for GenesisConfig {
+	fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
+		// we have nothing to put into storage in genesis, except this:
+		storage.top.insert(well_known_keys::CODE.into(), WASM_BINARY.unwrap().to_vec());
 
-/// Balance of an account.
-pub type Balance = u128;
+		Ok(())
+	}
+}
 
-/// Index of a transaction in the chain.
-pub type Nonce = u32;
-
-/// A hash of some data used by the chain.
-pub type Hash = sp_core::H256;
-
-/// An index to a block.
 pub type BlockNumber = u32;
-
-/// The address format for describing accounts.
-pub type Address = MultiAddress<AccountId, ()>;
-
-/// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+pub type Block = generic::Block<Header, BasicExtrinsic>;
+pub type Balance = u128;  
+pub type Nonce = u32; 
+#[derive(
+	Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
+pub enum Call {
+	Foo,
+}
+#[derive(
+	Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 
-/// Block type as expected by this runtime.
-pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+pub struct BasicExtrinsic(Call);
 
-/// A Block signed with a Justification
-pub type SignedBlock = generic::SignedBlock<Block>;
+#[cfg(test)]
+impl BasicExtrinsic {
+	fn new_unsigned(call: Call) -> Self {
+		<Self as Extrinsic>::new(call, None).unwrap()
+	}
+}
 
-/// BlockId type as expected by this runtime.
-pub type BlockId = generic::BlockId<Block>;
+impl Extrinsic for BasicExtrinsic {
+	type Call = Call;
+	type SignaturePayload = ();
 
-/// The `TransactionExtension` to the basic transaction logic.
-pub type TxExtension = (
-	frame_system::CheckNonZeroSender<Runtime>,
-	frame_system::CheckSpecVersion<Runtime>,
-	frame_system::CheckTxVersion<Runtime>,
-	frame_system::CheckGenesis<Runtime>,
-	frame_system::CheckEra<Runtime>,
-	frame_system::CheckNonce<Runtime>,
-	frame_system::CheckWeight<Runtime>,
-	frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
-);
+	fn new(data: Self::Call, _: Option<Self::SignaturePayload>) -> Option<Self> {
+		Some(Self(data))
+	}
+}
 
-/// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic =
-	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, TxExtension>;
+impl sp_runtime::traits::GetNodeBlockType for Runtime {
+	type NodeBlock = opaque::Block;
+}
 
-/// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<RuntimeCall, TxExtension>;
+impl sp_runtime::traits::GetRuntimeBlockType for Runtime {
+	type RuntimeBlock = Block;
+}
 
-/// All migrations of the runtime, aside from the ones declared in the pallets.
-///
-/// This can be a tuple of types, each implementing `OnRuntimeUpgrade`.
-#[allow(unused_parens)]
-type Migrations = ();
+const LOG_TARGET: &'static str = "frameless";
+const BLOCK_TIME: u64 = 3000;
 
-/// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<
-	Runtime,
-	Block,
-	frame_system::ChainContext<Runtime>,
-	Runtime,
-	AllPalletsWithSystem,
-	Migrations,
->;
+const HEADER_KEY: &[u8] = b"header"; // 686561646572
+const EXTRINSICS_KEY: &[u8] = b"extrinsics";
 
-// Create the runtime by composing the FRAME pallets that were previously configured.
-#[frame_support::runtime]
-mod runtime {
-	#[runtime::runtime]
-	#[runtime::derive(
-		RuntimeCall,
-		RuntimeEvent,
-		RuntimeError,
-		RuntimeOrigin,
-		RuntimeFreezeReason,
-		RuntimeHoldReason,
-		RuntimeSlashReason,
-		RuntimeLockId,
-		RuntimeTask
-	)]
-	pub struct Runtime;
+pub type AccountId = sp_core::sr25519::Public;
+// just FYI:
+// :code => 3a636f6465
 
-	#[runtime::pallet_index(0)]
-	pub type System = frame_system;
+/// The main struct in this module. In frame this comes from `construct_runtime!`
+pub struct Runtime;
 
-	#[runtime::pallet_index(1)]
-	pub type Timestamp = pallet_timestamp;
+type DispatchResult = Result<(), ()>;
 
-	#[runtime::pallet_index(2)]
-	pub type Aura = pallet_aura;
+impl Runtime {
+	fn print_state() {
+		let mut key = vec![];
+		while let Some(next) = sp_io::storage::next_key(&key) {
+			let val = sp_io::storage::get(&next).unwrap().to_vec();
+			log::trace!(
+				target: LOG_TARGET,
+				"{} <=> {}",
+				HexDisplay::from(&next),
+				HexDisplay::from(&val)
+			);
+			key = next;
+		}
+	}
 
-	#[runtime::pallet_index(3)]
-	pub type Grandpa = pallet_grandpa;
+	fn get_state<T: Decode>(key: &[u8]) -> Option<T> {
+		sp_io::storage::get(key).and_then(|d| T::decode(&mut &*d).ok())
+	}
 
-	#[runtime::pallet_index(4)]
-	pub type Balances = pallet_balances;
+	fn mutate_state<T: Decode + Encode + Default>(key: &[u8], update: impl FnOnce(&mut T)) {
+		let mut value = Self::get_state(key).unwrap_or_default();
+		update(&mut value);
+		sp_io::storage::set(key, &value.encode());
+	}
+
+	fn dispatch_extrinsic(ext: BasicExtrinsic) -> DispatchResult {
+		log::debug!(target: LOG_TARGET, "dispatching {:?}", ext);
+
+		// execute it
+		// TODO..
+
+		Ok(())
+	}
+
+	pub(crate) fn do_initialize_block(
+		header: &<Block as BlockT>::Header,
+	) -> ExtrinsicInclusionMode {
+		sp_io::storage::set(&HEADER_KEY, &header.encode());
+		sp_io::storage::clear(&EXTRINSICS_KEY);
+		ExtrinsicInclusionMode::AllExtrinsics
+	}
 
 
+	fn do_finalize_block() -> <Block as BlockT>::Header {
+		let mut header = Self::get_state::<<Block as BlockT>::Header>(HEADER_KEY)
+			.expect("We initialized with header, it never got mutated, qed");
+
+		// the header itself contains the state root, so it cannot be inside the state (circular
+		// dependency..). Make sure in execute block path we have the same rule.
+		sp_io::storage::clear(&HEADER_KEY);
+
+		let raw_state_root = &sp_io::storage::root(sp_core::storage::StateVersion::V0)[..];
+		header.state_root = sp_core::H256::decode(&mut &raw_state_root[..]).unwrap();
+
+		// header.extrinsics_root = ??;
+
+		info!(target: LOG_TARGET, "finalizing block {:?}", header);
+		header
+	}
+
+	fn do_execute_block(block: Block) {
+		info!(target: LOG_TARGET, "Entering execute_block. block: {:?}", block);
+
+		for extrinsic in block.clone().extrinsics {
+			// block import cannot fail.
+			Runtime::dispatch_extrinsic(extrinsic).unwrap();
+		}
+
+		// check state root
+		let raw_state_root = &sp_io::storage::root(StateVersion::V1)[..];
+		let state_root = H256::decode(&mut &raw_state_root[..]).unwrap();
+		Self::print_state();
+		assert_eq!(block.header.state_root, state_root);
+
+		// check extrinsics root.
+		let extrinsics =
+			block.extrinsics.into_iter().map(|x| x.encode()).collect::<Vec<_>>();
+		let extrinsics_root =
+			BlakeTwo256::ordered_trie_root(extrinsics, sp_core::storage::StateVersion::V0);
+		assert_eq!(block.header.extrinsics_root, extrinsics_root);
+	}
+
+	fn do_apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+		info!(target: LOG_TARGET, "Entering apply_extrinsic: {:?}", extrinsic);
+
+		Self::dispatch_extrinsic(extrinsic)
+			.map_err(|_| TransactionValidityError::Invalid(InvalidTransaction::Custom(0)))?;
+
+		Ok(Ok(()))
+	}
+
+	fn do_validate_transaction(
+		source: TransactionSource,
+		tx: <Block as BlockT>::Extrinsic,
+		block_hash: <Block as BlockT>::Hash,
+	) -> TransactionValidity {
+		log::debug!(
+			target: LOG_TARGET,
+			"Entering validate_transaction. source: {:?}, tx: {:?}, block hash: {:?}",
+			source,
+			tx,
+			block_hash
+		);
+
+		// we don't know how to validate this -- It should be fine??
+
+		let data = tx.0;
+		Ok(ValidTransaction { provides: vec![data.encode()], ..Default::default() })
+	}
+
+	fn do_inherent_extrinsics(_: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+		log::debug!(target: LOG_TARGET, "Entering do_inherent_extrinsics");
+		Default::default()
+	}
+
+	fn do_check_inherents(
+		_: Block,
+		_: sp_inherents::InherentData,
+	) -> sp_inherents::CheckInherentsResult {
+		log::debug!(target: LOG_TARGET, "Entering do_check_inherents");
+		Default::default()
+	}
+}
+
+impl_runtime_apis! {
+	// https://substrate.dev/rustdocs/master/sp_api/trait.Core.html
+	
+	impl sp_api::Core<Block> for Runtime {
+		fn version() -> RuntimeVersion {
+			VERSION
+		}
+
+		fn execute_block(block: Block) {
+			info!(
+				target: LOG_TARGET,
+				"Entering execute_block block: {:?} (exts: {})",
+				block,
+				block.extrinsics.len()
+			);
+			// Be aware: In your local tests, we assume `do_execute_block` is equal to
+			// `execute_block`.
+			Self::do_execute_block(block)
+		}
+
+		fn initialize_block(header: &<Block as BlockT>::Header) -> sp_runtime::ExtrinsicInclusionMode {
+			info!(
+				target: LOG_TARGET,
+				"Entering initialize_block. header: {:?} / version: {:?}", header, VERSION.spec_version
+			);
+			// Be aware: In your local tests, we assume `do_initialize_block` is equal to
+			// `initialize_block`.
+			Self::do_initialize_block(header)
+		}
+	}
+
+	// https://substrate.dev/rustdocs/master/sc_block_builder/trait.BlockBuilderApi.html
+	impl sp_block_builder::BlockBuilder<Block> for Runtime {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+			Self::do_apply_extrinsic(extrinsic)
+		}
+
+		fn finalize_block() -> <Block as BlockT>::Header {
+			Self::do_finalize_block()
+		}
+
+		fn inherent_extrinsics(data: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			Self::do_inherent_extrinsics(data)
+		}
+
+		fn check_inherents(
+			block: Block,
+			data: sp_inherents::InherentData
+		) -> sp_inherents::CheckInherentsResult {
+			Self::do_check_inherents(block, data)
+		}
+	}
+
+	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
+		fn validate_transaction(
+			source: TransactionSource,
+			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
+		) -> TransactionValidity {
+			Self::do_validate_transaction(source, tx, block_hash)
+		}
+	}
+
+	// Ignore everything after this.
+	impl sp_api::Metadata<Block> for Runtime {
+		fn metadata() -> OpaqueMetadata {
+			OpaqueMetadata::new(Default::default())
+		}
+		fn metadata_at_version(_version: u32) -> Option<OpaqueMetadata> {
+			Default::default()
+		}
+
+		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+			Default::default()
+		}
+	}
+
+	impl sp_offchain::OffchainWorkerApi<Block> for Runtime {
+		fn offchain_worker(_header: &<Block as BlockT>::Header) {
+			// we do not do anything.
+		}
+	}
+
+	impl sp_session::SessionKeys<Block> for Runtime {
+		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
+			info!(target: "frameless", "🖼️ Entering generate_session_keys. seed: {:?}", seed);
+			opaque::SessionKeys::generate(seed)
+		}
+
+		fn decode_session_keys(
+			encoded: Vec<u8>,
+		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
+			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
+		}
+	}
+
+	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
+		fn slot_duration() -> sp_consensus_aura::SlotDuration {
+			sp_consensus_aura::SlotDuration::from_millis(BLOCK_TIME)
+		}
+
+		fn authorities() -> Vec<AuraId> {
+			// Hardcoded authority key for --dev mode
+			let raw_key: [u8; 32] = hex_literal::hex!(
+				"d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+			);
+
+			vec![AuraId::from(sp_core::sr25519::Public::from_raw(raw_key))]
+		}
+	}
+
+	impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
+		fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
+			let raw_key: [u8; 32] = hex_literal::hex!(
+				"88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee"
+			);
+
+			vec![(sp_consensus_grandpa::AuthorityId::from(sp_core::ed25519::Public::from_raw(raw_key)),1)]
+		}
+
+		fn current_set_id() -> sp_consensus_grandpa::SetId {
+			0u64
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			_equivocation_proof: sp_consensus_grandpa::EquivocationProof<
+				<Block as BlockT>::Hash,
+				sp_runtime::traits::NumberFor<Block>,
+			>,
+			_key_owner_proof: sp_consensus_grandpa::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			None
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: sp_consensus_grandpa::SetId,
+			_authority_id: sp_consensus_grandpa::AuthorityId,
+		) -> Option<sp_consensus_grandpa::OpaqueKeyOwnershipProof> {
+			None
+		}
+	}
 
 }

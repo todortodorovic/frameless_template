@@ -13,23 +13,20 @@ publish = false
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { version = "3.6.12", package = "parity-scale-codec", features = ["derive"], default-features = false }
 scale-info = { version = "2.11.1", features = ["derive", "serde"], default-features = false }
+serde = { version = "1.0.130", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.132", default-features = false, features = ["alloc"] }
 frame-support = { version = "39.1.0", features = ["experimental"], default-features = false }
-frame-system = { version = "39.1.0", default-features = false }
+frame-system = { version = "39.0.0", default-features = false }
 frame-try-runtime = { version = "0.45.0", optional = true, default-features = false }
-frame-executive = { version = "39.1.0", default-features = false }
+frame-executive = { version = "39.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.7.0", default-features = false }
-pallet-aura = { version = "38.1.0", default-features = false }
-pallet-balances = { version = "40.1.0", default-features = false }
-pallet-grandpa = { version = "39.1.0", default-features = false }
-pallet-timestamp = { version = "38.0.0", default-features = false }
+
 sp-api = { version = "35.0.0", default-features = false }
 sp-block-builder = { version = "35.0.0", default-features = false }
 sp-consensus-aura = { version = "0.41.0", features = ["serde"], default-features = false }
 sp-consensus-grandpa = { version = "22.0.0", features = ["serde"], default-features = false }
-sp-keyring = { version = "40.0.0", default-features = false }
+sp-keyring = { version = "36.0.0", default-features = false }
 sp-core = { version = "35.0.0", features = ["serde"], default-features = false }
 sp-inherents = { version = "35.0.0", default-features = false }
 sp-offchain = { version = "35.0.0", default-features = false }
@@ -40,24 +37,27 @@ sp-transaction-pool = { version = "35.0.0", default-features = false }
 sp-version = { version = "38.0.0", features = ["serde"], default-features = false }
 sp-genesis-builder = { version = "0.16.0", default-features = false }
 frame-system-rpc-runtime-api = { version = "35.0.0", default-features = false }
+sp-application-crypto = { version = "39.0.0", default-features = false }
+parity-scale-codec = { version = "3.7.4", default-features = false, features = ["derive"] }
+log = "0.4"
+sp-io = { version = "39.0.0", default-features = false }
+hex-literal = { version = "1.0.0", default-features = false }
+getrandom = { version = "0.2.10", default-features = false, features = ["js"] }
+sp-std = { version = "14.0.0", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "25.0.0", optional = true, default-features = true }
+substrate-wasm-builder = { version = "22.0.0", optional = true }
 
 [features]
 default = ["std"]
 std = [
-	"codec/std",
 	"frame-executive/std",
 	"frame-metadata-hash-extension/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"frame-try-runtime?/std",
-	"pallet-aura/std",
-	"pallet-balances/std",
-	"pallet-grandpa/std",
-	"pallet-timestamp/std",
+
 	"scale-info/std",
 	"serde_json/std",
 	"sp-api/std",
@@ -67,6 +67,7 @@ std = [
 	"sp-core/std",
 	"sp-genesis-builder/std",
 	"sp-inherents/std",
+	"sp-io/std",
 	"sp-keyring/std",
 	"sp-offchain/std",
 	"sp-runtime/std",
@@ -75,6 +76,9 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"parity-scale-codec/std",
+	"sp-application-crypto/std",
+	"getrandom/std",
 ]
 
 try-runtime = [
@@ -82,10 +86,7 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime/try-runtime",
-	"pallet-aura/try-runtime",
-	"pallet-balances/try-runtime",
-	"pallet-grandpa/try-runtime",
-	"pallet-timestamp/try-runtime",
+
 	"sp-runtime/try-runtime",
 ]
 
