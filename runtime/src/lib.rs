@@ -74,8 +74,7 @@ pub mod opaque {
 }
 
 /// This runtime version.
-///ovo dole odkomentarisati
-///#[sp_version::runtime_version]
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("frameless-runtime"),
 	impl_name: create_runtime_str!("frameless-runtime"),
@@ -153,11 +152,14 @@ const BLOCK_TIME: u64 = 3000;
 
 const HEADER_KEY: &[u8] = b"header"; // 686561646572
 const EXTRINSICS_KEY: &[u8] = b"extrinsics";
-
+const VALUE_KEY: &[u8] = b"value";
 pub type AccountId = sp_core::sr25519::Public;
 // just FYI:
 // :code => 3a636f6465
-
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct RuntimeGenesis {
+	pub(crate) value: u32,
+}
 /// The main struct in this module. In frame this comes from `construct_runtime!`
 pub struct Runtime;
 
@@ -187,6 +189,21 @@ impl Runtime {
 		update(&mut value);
 		sp_io::storage::set(key, &value.encode());
 	}
+
+    /// Storage prefix for mapping AccountId -> Nonce
+    const ACCOUNT_NONCE_PREFIX: &[u8] = b"account_nonce/";
+
+    /// Helper: return the storage key used for an account's nonce.
+    fn account_nonce_key(account: &AccountId) -> Vec<u8> {
+        let mut key = Self::ACCOUNT_NONCE_PREFIX.to_vec();
+        key.extend(account.encode());
+        key
+    }
+
+    /// Read current nonce of an account; returns 0 if missing.
+    fn account_nonce_of(account: &AccountId) -> Nonce {
+        Self::get_state::<Nonce>(&Self::account_nonce_key(account)).unwrap_or_default()
+    }
 
 	fn dispatch_extrinsic(ext: BasicExtrinsic) -> DispatchResult {
 		log::debug!(target: LOG_TARGET, "dispatching {:?}", ext);
@@ -232,7 +249,7 @@ impl Runtime {
 		}
 
 		// check state root
-		let raw_state_root = &sp_io::storage::root(StateVersion::V1)[..];
+		let raw_state_root = &sp_io::storage::root(StateVersion::V0)[..];
 		let state_root = H256::decode(&mut &raw_state_root[..]).unwrap();
 		Self::print_state();
 		assert_eq!(block.header.state_root, state_root);
@@ -285,6 +302,48 @@ impl Runtime {
 		log::debug!(target: LOG_TARGET, "Entering do_check_inherents");
 		Default::default()
 	}
+	pub(crate) fn do_build_state(runtime_genesis: RuntimeGenesis) -> sp_genesis_builder::Result {
+		sp_io::storage::set(&VALUE_KEY, &runtime_genesis.value.encode());
+		Ok(())
+	}
+
+
+	pub(crate) fn do_get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
+		match id {
+			Some(preset_id) =>
+				 if preset_id == "local_testnet" {
+					Some(
+						serde_json::to_string(&RuntimeGenesis { value: 42 * 2 })
+							.unwrap()
+							.as_bytes()
+							.to_vec(),
+					)
+				} 
+				else if preset_id == "development" {
+					Some(
+						serde_json::to_string(&RuntimeGenesis { value: 42 * 2 })
+							.unwrap()
+							.as_bytes()
+							.to_vec(),
+					)
+				}else {
+					None
+				},
+				
+			// none indicates the default preset.
+			None => Some(
+				serde_json::to_string(&RuntimeGenesis { value: 42 })
+					.unwrap()
+					.as_bytes()
+					.to_vec(),
+			),
+		}
+	}
+	pub(crate) fn do_preset_names() -> Vec<sp_genesis_builder::PresetId> {
+		vec!["special-preset-1".into()]
+	}
+
+
 }
 
 impl_runtime_apis! {
@@ -429,4 +488,29 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+		fn account_nonce(account: AccountId) -> Nonce {
+			Runtime::account_nonce_of(&account)
+		}
+	}
+
+	impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
+		fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
+			let runtime_genesis: RuntimeGenesis = serde_json::from_slice(&config)
+				.map_err(|e| sp_runtime::create_runtime_str!("Invalid JSON blob"))?;
+			info!(target: LOG_TARGET, "Entering build_state: {:?}", runtime_genesis);
+			Self::do_build_state(runtime_genesis)
+		}
+
+		fn get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
+			info!(target: LOG_TARGET, "Entering get_preset: {:?}", id);
+			Self::do_get_preset(id)
+		}
+
+		fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
+			info!(target: LOG_TARGET, "Entering preset_names");
+			Self::do_preset_names()
+		}
+	}
 }
+
