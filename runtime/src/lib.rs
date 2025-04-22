@@ -1,3 +1,28 @@
+//! # Frameless Runtime
+//!
+//! This crate implements a minimal Substrate runtime **without relying on FRAME macros or pallets**.
+//! Instead, it uses core Substrate primitives and pure Rust logic to define a working blockchain runtime.
+//!
+//! ## Purpose
+//!
+//! - Explore how Substrate runtimes work "under the hood"
+//! - Demonstrate a manually-constructed runtime without FRAME abstraction
+//! - Serve as a learning tool or a base for custom runtime experiments
+//!
+//! ## Features
+//!
+//! - Manual block initialization, execution, and finalization
+//! - Custom extrinsic type (`BasicExtrinsic`) with simple call variants
+//! - Minimal support for Aura and Grandpa consensus engines
+//! - Compatible with `sp-genesis-builder` for custom genesis configurations
+//!
+//! ## Use Cases
+//!
+//! This template is ideal for:
+//! - Educational purposes
+//! - Lightweight experimentation with runtime internals
+//! - Advanced debugging of Substrate behavior without FRAME complexity
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
@@ -41,18 +66,32 @@ use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-/// Opaque types used by the node to abstract over runtime internals like calls and extrinsics.
+/// Opaque types and session key definitions used by the node runtime.
+///
+/// This module defines types that abstract away implementation details of the runtime.
+/// They are used by the node for block processing and consensus-related operations.
+///
+/// ## Components
+///
+/// - `Header`: Opaque header type using `BlockNumber` and `BlakeTwo256` hashing
+/// - `Block`: Opaque block type composed of the header and extrinsics
+/// - `SessionKeys`: Session key structure for Aura and Grandpa consensus
+/// - `AuraAppPublic` / `GrandpaAppPublic`: Wrappers used to map runtime authorities
+
 pub mod opaque {
     use super::*;
-    // Defines the opaque extrinsic type used by the node.
+	/// Opaque extrinsic type used by the node.
     type OpaqueExtrinsic = BasicExtrinsic;
-
-    // Opaque header type used in block definition.
+  	/// Opaque extrinsic type used by the node.efinition.
     pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-    // Opaque block type combining header and opaque extrinsic.
+    /// Opaque block type consisting of a header and extrinsics.
     pub type Block = generic::Block<Header, OpaqueExtrinsic>;
 
-    // Defines session keys required by the runtime (Aura and Grandpa).
+    /// Session keys structure used by the runtime for consensus authorities.
+    ///
+    /// Includes:
+    /// - `aura`: Authority key for Aura consensus
+    /// - `grandpa`: Authority key for Grandpa finality
     impl_opaque_keys! {
         pub struct SessionKeys {
             pub aura: AuraAppPublic,
@@ -60,20 +99,21 @@ pub mod opaque {
         }
     }
 
-    // Maps Aura session key type.
+    /// Wrapper to bind the Aura authority ID to the session key type.
     pub struct AuraAppPublic;
     impl BoundToRuntimeAppPublic for AuraAppPublic {
         type Public = AuraId;
     }
 
-    // Maps Grandpa session key type.
+    /// Wrapper to bind the Grandpa authority ID to the session key type.
     pub struct GrandpaAppPublic;
     impl BoundToRuntimeAppPublic for GrandpaAppPublic {
         type Public = sp_consensus_grandpa::AuthorityId;
     }
 }
 
-/// This runtime version.
+/// Runtime version information used by the Substrate client to check compatibility.
+/// Includes specification and implementation versioning, along with supported APIs.
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: Cow::Borrowed("frameless-runtime"),
@@ -86,8 +126,10 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     system_version: 1,
 };
 
-/// Returns the native version of the runtime for the native client.
-/// This is used to verify compatibility when the runtime is compiled natively (not to WASM).
+/// Returns the native runtime version.
+///
+/// Used by the native Substrate client to ensure the compiled runtime is compatible
+/// with the WASM runtime used on-chain.
 
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
@@ -97,15 +139,16 @@ pub fn native_version() -> NativeVersion {
     }
 }
 
-/// This struct is used to define the initial state of the blockchain at genesis.
-/// In this frameless runtime, it’s just a placeholder, but can be extended to include custom fields.
-
+/// Placeholder for the genesis configuration of this runtime.
+///
+/// This struct can be extended to include any runtime-specific configuration that
+/// should be initialized at genesis.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
 pub struct GenesisConfig;
 
-/// Implementation of the BuildStorage trait for GenesisConfig.
-/// This is called when initializing the chain to insert the WASM runtime code into storage.
-
+/// Implements the `BuildStorage` trait to provide the initial on-chain storage state.
+///
+/// Inserts the WASM runtime binary into the `:code` storage key during chain initialization.
 #[cfg(feature = "std")]
 impl BuildStorage for GenesisConfig {
     fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
@@ -132,9 +175,11 @@ pub type Balance = u128;
 /// Nonce type, representing the number of transactions sent by an account.
 pub type Nonce = u32;
 
-/// Enum representing possible calls in this runtime.
-/// `Foo` is a dummy function, `SetValue` sets a value in storage.
-
+/// Enum representing all possible runtime calls.
+///
+/// Each variant corresponds to an operation that can be executed via an extrinsic.
+/// - `Foo`: Dummy function for testing dispatch.
+/// - `SetValue(u32)`: Stores the provided value into runtime storage.
 #[derive(
     Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
@@ -142,27 +187,25 @@ pub enum Call {
     Foo,
     SetValue(u32),
 }
+
+
+/// Basic extrinsic type containing only a runtime call.
+///
+/// This simplified format omits signature, nonce, and other metadata typically found
+/// in signed extrinsics. Suitable for lightweight and test-focused runtimes.
 #[derive(
     Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
-
-/// Simplified extrinsic struct containing just a call (no signature, nonce, etc).
 
 pub struct BasicExtrinsic {
     pub function: Call,
 }
 
-/// Helper method for testing: creates an unsigned extrinsic from a call.
 
-#[cfg(test)]
-impl BasicExtrinsic {
-    fn new_unsigned(call: Call) -> Self {
-        <Self as Extrinsic>::new(call, None).unwrap()
-    }
-}
-
-/// Implements the Extrinsic trait for BasicExtrinsic.
-/// This allows it to be used by Substrate as a valid extrinsic format.
+/// Extrinsic trait implementation for `BasicExtrinsic`.
+///
+/// Allows Substrate to treat this struct as a valid extrinsic type.
+/// Returns an instance of `BasicExtrinsic` using the provided call.
 
 impl Extrinsic for BasicExtrinsic {
     type Call = Call;
@@ -208,44 +251,69 @@ pub type AccountId = sp_core::sr25519::Public;
 struct RuntimeGenesis {
     pub(crate) value: u32,
 }
-/// The runtime itself. In FRAME, you'd use `construct_runtime!`, but here it's defined manually.
+/// The runtime implementation.
+///
+/// This struct acts as the core of the blockchain runtime. It contains all the logic for
+/// block execution, extrinsic application, storage interaction, and transaction validation.
+/// Unlike FRAME-based runtimes, all behavior is defined manually via inherent methods.
 pub struct Runtime;
 
-/// Standard alias for dispatch result types — `Ok(())` or error.
+/// Standard alias for dispatch result types — `Ok(())` on success, `Err(())` on failure.
+///
+/// Used throughout the runtime as a simplified result type for extrinsic execution.
 type DispatchResult = Result<(), ()>;
 
+/// Implementation of core runtime logic for the `Runtime` struct.
+///
+/// Provides helper methods for interacting with storage, applying extrinsics, and executing blocks.
+/// This is the manual equivalent of what FRAME pallets usually provide.
 impl Runtime {
-	/// Read and decode a value of type `T` from storage using the given key.
-    /// Returns `None` if the key doesn't exist or decoding fails.
+    /// Reads and decodes a value of type `T` from Substrate storage using the given key.
+    ///
+    /// Returns `Some(T)` if the value exists and can be decoded, or `None` otherwise.
+    /// Useful for accessing runtime storage in a type-safe way.
     fn get_state<T: Decode>(key: &[u8]) -> Option<T> {
         sp_io::storage::get(key).and_then(|d| T::decode(&mut &*d).ok())
     }
 
-	/// Read a value from storage, apply a mutation to it, and store the updated value back.
-    /// If the key doesn't exist, the default value for `T` is used.
+    /// Reads a value from storage, applies a mutation to it, and writes it back.
+    ///
+    /// If the value does not exist under the given key, it is initialized with `T::default()`.
+    /// Commonly used to update counters, mappings, or other stored data.
     fn mutate_state<T: Decode + Encode + Default>(key: &[u8], update: impl FnOnce(&mut T)) {
         let mut value = Self::get_state(key).unwrap_or_default();
         update(&mut value);
         sp_io::storage::set(key, &value.encode());
     }
 
-    /// Prefix used in storage to separate account nonces from other keys.ng AccountId -> Nonce
+    /// Prefix used to generate unique storage keys for account nonces.
+    ///
+    /// Nonces are stored under keys formatted as `account_nonce/{account_id}`.
     const ACCOUNT_NONCE_PREFIX: &[u8] = b"account_nonce/";
 
-    /// Compute the storage key for a specific account's nonce using the predefined prefix.
+    /// Computes the full storage key for an account's nonce by combining a prefix and the encoded account ID.
+    ///
+    /// Used internally to access nonce values stored in Substrate storage.
     fn account_nonce_key(account: &AccountId) -> Vec<u8> {
         let mut key = Self::ACCOUNT_NONCE_PREFIX.to_vec();
         key.extend(account.encode());
         key
     }
 
-    /// Read the nonce value of a specific account.
-    /// Returns 0 if the account does not yet have a nonce in storage.
+    /// Returns the nonce value for a given account.
+    ///
+    /// If the account has no associated nonce in storage, returns `0`.
+    /// This function is used to track the number of transactions an account has sent.
     fn account_nonce_of(account: &AccountId) -> Nonce {
         Self::get_state::<Nonce>(&Self::account_nonce_key(account)).unwrap_or_default()
     }
-	/// Executes the logic defined in a given extrinsic (Call variant).
-    /// Currently supports `Foo` and `SetValue(u32)`.
+    /// Executes the logic defined in a given extrinsic (Call variant).
+    ///
+    /// Currently supports:
+    /// - `Call::Foo`: Logs the call but performs no state changes.
+    /// - `Call::SetValue(u32)`: Stores the provided value into runtime storage.
+    ///
+    /// Returns `Ok(())` on success.
     fn dispatch_extrinsic(ext: BasicExtrinsic) -> DispatchResult {
         log::debug!(target: LOG_TARGET, "dispatching {:?}", ext);
 
@@ -261,7 +329,12 @@ impl Runtime {
 
         Ok(())
     }
-    /// Initialize a new block by storing its header and clearing any previous extrinsics.
+    /// Initializes a new block by storing its header and clearing previous extrinsics.
+    ///
+    /// Called by the executor at the beginning of each block. Sets the context for
+    /// extrinsic application and future block finalization.
+    ///
+    /// Returns `ExtrinsicInclusionMode::AllExtrinsics` to indicate full inclusion support.
     pub(crate) fn do_initialize_block(
         header: &<Block as BlockT>::Header,
     ) -> ExtrinsicInclusionMode {
@@ -269,7 +342,10 @@ impl Runtime {
         sp_io::storage::clear(&EXTRINSICS_KEY);
         ExtrinsicInclusionMode::AllExtrinsics
     }
-    /// Finalize the current block by calculating and inserting the state root and extrinsics root into the header.
+    /// Finalizes the block by calculating its state root and extrinsics root.
+    ///
+    /// These values are inserted into the header and returned. This function must
+    /// be called after all extrinsics have been applied and any state changes are complete.
     pub(crate) fn do_finalize_block() -> <Block as BlockT>::Header {
         // fetch the header that was given to us at the beginning of the block.
         let mut header = Self::get_state::<<Block as BlockT>::Header>(HEADER_KEY)
@@ -289,8 +365,11 @@ impl Runtime {
     }
 
 
-    /// Execute all extrinsics in the block and assert that state and extrinsics roots match the block header.
-    fn do_execute_block(block: Block) {
+    /// Executes all extrinsics in the given block and asserts final root correctness.
+    ///
+    /// Used when the node replays or validates blocks. This function ensures that
+    /// both state root and extrinsics root match the expected values in the block header.
+    pub(crate) fn do_execute_block(block: Block) {
         info!(target: LOG_TARGET, "Entering execute_block. block: {:?}", block);
 
         for extrinsic in block.clone().extrinsics {
@@ -314,11 +393,13 @@ impl Runtime {
             BlakeTwo256::ordered_trie_root(extrinsics, sp_core::storage::StateVersion::V0);
         assert_eq!(block.header.extrinsics_root, extrinsics_root);
     }
-	/// Applies a single extrinsic (transaction) to the current block state.
-	/// - Executes the call (currently supports `Foo` and `SetValue`).
-	/// - Logs the result of the dispatch.
-	/// - Appends the encoded extrinsic to storage under `EXTRINSICS_KEY` for later trie root calculation.
-	/// Returns `Ok(Ok(()))` on success, or propagates error.
+    /// Applies a single extrinsic (transaction) to the current block state.
+    ///
+    /// - Executes the call (currently supports `Foo` and `SetValue`).
+    /// - Logs the result of the dispatch.
+    /// - Appends the encoded extrinsic to storage under `EXTRINSICS_KEY` for later trie root calculation.
+    ///
+    /// Returns `Ok(Ok(()))` on success, or propagates any dispatch error.
     pub(crate) fn do_apply_extrinsic(ext: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 		let dispatch_outcome = match ext.clone().function {
 			Call::Foo => {
@@ -340,12 +421,14 @@ impl Runtime {
 	
 		dispatch_outcome.map(Ok)
 	}
-	/// Performs basic validation of an incoming transaction before it's accepted into the transaction pool.
-	/// - Logs the transaction source, data, and associated block hash.
-	/// - Accepts all transactions as valid by default.
-	/// - Uses the encoded call data as the `provides` tag for uniqueness.
-	/// Returns a `ValidTransaction` result.
-    fn do_validate_transaction(
+    /// Performs basic validation of an incoming transaction before it's accepted into the transaction pool.
+    ///
+    /// - Logs the transaction source, data, and associated block hash.
+    /// - Accepts all transactions as valid by default.
+    /// - Uses the encoded call data as the `provides` tag for uniqueness.
+    ///
+    /// Returns a `ValidTransaction` result.
+    pub(crate) fn do_validate_transaction(
         source: TransactionSource,
         tx: <Block as BlockT>::Extrinsic,
         block_hash: <Block as BlockT>::Hash,
@@ -365,17 +448,19 @@ impl Runtime {
             ..Default::default()
         })
     }
-	/// Generates inherent extrinsics (like timestamp or consensus data) for the block builder.
-	/// - Currently returns an empty vector since this runtime does not use any inherents.
-	/// Can be extended in the future to support things like `pallet_timestamp`.
-    fn do_inherent_extrinsics(_: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+    /// Generates inherent extrinsics (like timestamp or consensus data) for the block builder.
+    ///
+    /// - Currently returns an empty vector since this runtime does not use any inherents.
+    /// - Can be extended in the future to support things like `pallet_timestamp`.
+    pub(crate) fn do_inherent_extrinsics(_: sp_inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
         log::debug!(target: LOG_TARGET, "Entering do_inherent_extrinsics");
         Default::default()
 	}
-	/// Validates the inherent extrinsics included in a block.
-	/// - Currently performs no validation and returns default (success).
-	/// Useful when inherents like timestamps or slot numbers are in use.
-    fn do_check_inherents(
+    /// Validates the inherent extrinsics included in a block.
+    ///
+    /// - Currently performs no validation and returns default (success).
+    /// - Useful when inherents like timestamps or slot numbers are in use.
+	pub(crate) fn do_check_inherents(
         _: Block,
         _: sp_inherents::InherentData,
     ) -> sp_inherents::CheckInherentsResult {
@@ -383,20 +468,23 @@ impl Runtime {
         Default::default()
     }
 
-	/// Initializes the storage state from a provided genesis configuration.
-	/// - Stores the value from `RuntimeGenesis` under `VALUE_KEY`.
-	/// - Used during chain bootstrapping via `sp-genesis-builder`.
+    /// Initializes the storage state from a provided genesis configuration.
+    ///
+    /// - Stores the value from `RuntimeGenesis` under `VALUE_KEY`.
+    /// - Used during chain bootstrapping via `sp-genesis-builder`.
     pub(crate) fn do_build_state(runtime_genesis: RuntimeGenesis) -> sp_genesis_builder::Result {
         sp_io::storage::set(&VALUE_KEY, &runtime_genesis.value.encode());
         Ok(())
     }
 
 
-	/// Returns a JSON-encoded genesis state preset for a given preset ID.
-	/// - `"local_testnet"` and `"development"` yield `value: 84`
-	/// - `None` yields default `value: 42`
-	/// - All other presets return `None`
-	/// Used by tools like `sp-genesis-builder` for preset selection.
+    /// Returns a JSON-encoded genesis state preset for a given preset ID.
+    ///
+    /// - `"local_testnet"` and `"development"` yield `value: 84`
+    /// - `None` yields default `value: 42`
+    /// - All other presets return `None`
+    ///
+    /// Used by tools like `sp-genesis-builder` for preset selection.
     pub(crate) fn do_get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
         match id {
 			Some(preset_id) if preset_id == "local_testnet" || preset_id == "development" => {
@@ -407,8 +495,9 @@ impl Runtime {
 		}
     }
 
-	/// Returns a list of available preset IDs supported by this runtime.
-	/// Used by tooling to show which named presets can be selected at chain genesis.
+    /// Returns a list of available preset IDs supported by this runtime.
+    ///
+    /// Used by tooling to show which named presets can be selected at chain genesis.
     pub(crate) fn do_preset_names() -> Vec<sp_genesis_builder::PresetId> {
 		vec![
 			"development".into(),
@@ -417,9 +506,25 @@ impl Runtime {
 	}
 }
 
+/// Implementation of Substrate runtime APIs exposed to the outside world.
+///
+/// These APIs allow the node and external tools (like Polkadot.js or RPC clients) to
+/// interact with the runtime to:
+/// - Execute and initialize blocks
+/// - Apply and validate extrinsics
+/// - Generate session keys
+/// - Retrieve metadata and versioning
+/// - Access Aura and Grandpa consensus authorities
+/// - Manage account nonces and genesis state
+///
+/// Each trait implementation inside this macro corresponds to a specific set of external runtime capabilities.
+/// These are required by the Substrate node to interface correctly with the runtime logic.
 impl_runtime_apis! {
-    // https://substrate.dev/rustdocs/master/sp_api/trait.Core.html
 
+    /// Core runtime API implementation.
+    ///
+    /// Provides version information, block initialization, and full block execution.
+    /// Required for all Substrate runtimes to allow external block interaction.
     impl sp_api::Core<Block> for Runtime {
         fn version() -> RuntimeVersion {
             VERSION
@@ -441,13 +546,16 @@ impl_runtime_apis! {
                 target: LOG_TARGET,
                 "Entering initialize_block. header: {:?} / version: {:?}", header, VERSION.spec_version
             );
-            // Be aware: In your local tests, we assume `do_initialize_block` is equal to
-            // `initialize_block`.
+        
             Self::do_initialize_block(header)
         }
     }
 
     // https://substrate.dev/rustdocs/master/sc_block_builder/trait.BlockBuilderApi.html
+    /// Block builder API implementation.
+    ///
+    /// Handles extrinsic application, block finalization, and inherent logic.
+    /// Used by the block production pipeline to build valid blocks.
     impl sp_block_builder::BlockBuilder<Block> for Runtime {
         fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
             Self::do_apply_extrinsic(extrinsic)
@@ -469,6 +577,10 @@ impl_runtime_apis! {
         }
     }
 
+    /// Transaction validation API.
+    ///
+    /// Validates incoming transactions before they're added to the transaction pool.
+    /// Returns metadata like dependencies and priority.
     impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
         fn validate_transaction(
             source: TransactionSource,
@@ -479,6 +591,10 @@ impl_runtime_apis! {
         }
     }
 
+    /// Metadata API.
+    ///
+    /// Returns runtime metadata used by clients and tooling.
+    /// In this implementation, returns empty/default metadata.
     impl sp_api::Metadata<Block> for Runtime {
         fn metadata() -> OpaqueMetadata {
             OpaqueMetadata::new(Default::default())
@@ -492,12 +608,19 @@ impl_runtime_apis! {
         }
     }
 
+    /// Off-chain worker API.
+    ///
+    /// Entry point for off-chain logic. Currently not used in this runtime.
     impl sp_offchain::OffchainWorkerApi<Block> for Runtime {
         fn offchain_worker(_header: &<Block as BlockT>::Header) {
             // we do not do anything.
         }
     }
 
+    /// Session keys API.
+    ///
+    /// Used to generate and decode session keys for Aura and Grandpa authorities.
+    /// Required for validator nodes.
     impl sp_session::SessionKeys<Block> for Runtime {
         fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
             info!(target: "frameless", "🖼️ Entering generate_session_keys. seed: {:?}", seed);
@@ -511,6 +634,10 @@ impl_runtime_apis! {
         }
     }
 
+    /// Aura consensus API.
+    ///
+    /// Provides the list of authorities and slot duration used by Aura.
+    /// Required for block authorship and slot production.
     impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
         fn slot_duration() -> sp_consensus_aura::SlotDuration {
             sp_consensus_aura::SlotDuration::from_millis(BLOCK_TIME)
@@ -526,6 +653,10 @@ impl_runtime_apis! {
         }
     }
 
+    /// Grandpa finality API.
+    ///
+    /// Provides the list of Grandpa authorities and support for key ownership proofs.
+    /// Used by nodes participating in block finality.
     impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
         fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
             let raw_key: [u8; 32] = hex_literal::hex!(
@@ -557,12 +688,19 @@ impl_runtime_apis! {
         }
     }
 
+    /// Account nonce API.
+    ///
+    /// Returns the nonce for a given account. Used by clients before submitting transactions.
     impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
         fn account_nonce(account: AccountId) -> Nonce {
             Runtime::account_nonce_of(&account)
         }
     }
 
+    /// Genesis builder API.
+    ///
+    /// Allows the runtime to support genesis configuration via presets and raw JSON blobs.
+    /// Used by tools like `sp-genesis-builder` and node CLI commands.
     impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
         fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
             let runtime_genesis: RuntimeGenesis = serde_json::from_slice(&config)
@@ -583,11 +721,21 @@ impl_runtime_apis! {
     }
 }
 
+/// Unit tests for the Frameless Runtime.
+///
+/// These tests validate the core functionality of the runtime, including:
+/// - State access and mutation
+/// - Extrinsic execution
+/// - Block lifecycle (initialization, execution, finalization)
+/// - Genesis configuration
+/// - Transaction validation
+/// - Inherent handling
 #[cfg(test)]
 mod tests {
     use super::*;
     use sp_io::TestExternalities;
-    use sp_runtime::traits::Header; // dodaj ovu liniju unutar mod tests
+    use sp_runtime::traits::Header; 
+    /// Ensures a newly created account has a nonce value of 0.
     #[test]
     fn account_nonce_should_start_at_zero() {
         let mut ext = TestExternalities::default();
@@ -598,6 +746,7 @@ mod tests {
         });
     }
 
+    /// Verifies that the `mutate_state` helper updates nonce values correctly in storage.
     #[test]
     fn mutate_state_should_change_nonce() {
         let mut ext = TestExternalities::default();
@@ -609,6 +758,7 @@ mod tests {
             assert_eq!(nonce, 5);
         });
     }
+    /// Validates that block headers are stored on initialization and retrieved on finalization.
     #[test]
     fn block_lifecycle_should_store_and_finalize_header() {
         let mut ext = TestExternalities::default();
@@ -627,6 +777,7 @@ mod tests {
             assert_eq!(finalized.number, 1);
         });
     }
+    /// Confirms that an extrinsic (`Call::Foo`) can be applied successfully.
     #[test]
     fn should_apply_valid_extrinsic() {
         let mut ext = TestExternalities::default();
@@ -636,6 +787,7 @@ mod tests {
             assert!(result.is_ok());
         });
     }
+    /// Verifies that `do_build_state` correctly inserts the value into genesis storage.
     #[test]
     fn should_build_state_with_value() {
         let mut ext = TestExternalities::default();
@@ -648,6 +800,7 @@ mod tests {
         });
     }
 
+    /// Ensures that transactions are accepted as valid by the validation logic.
     #[test]
     fn should_validate_transaction() {
         let mut ext = TestExternalities::default();
@@ -662,6 +815,7 @@ mod tests {
         });
     }
 
+    /// Ensures the runtime returns an empty list of inherent extrinsics by default.
     #[test]
     fn should_return_default_inherent_extrinsics() {
         let mut ext = TestExternalities::default();
@@ -671,6 +825,7 @@ mod tests {
         });
     }
 
+    /// Ensures `do_check_inherents` returns success without errors.
     #[test]
     fn should_return_default_check_inherents() {
         let mut ext = TestExternalities::default();
@@ -692,6 +847,7 @@ mod tests {
         });
     }
 
+    /// Verifies correct behavior of the `do_get_preset` and `do_preset_names` functions.
     #[test]
     fn should_return_presets_correctly() {
         let development = Some("development".into());
@@ -707,6 +863,7 @@ mod tests {
 		assert_eq!(presets, vec!["development", "local_testnet"]);
     }
 
+    /// Verifies that `do_finalize_block` sets the correct state root after storage changes.
     #[test]
     fn finalize_block_should_set_correct_state_root() {
         let mut ext = TestExternalities::default();
@@ -737,6 +894,7 @@ mod tests {
         });
     }
 
+    /// Ensures `Call::SetValue` stores the expected value in state.
     #[test]
     fn set_value_call_should_store_value() {
         let mut ext = sp_io::TestExternalities::default();
@@ -750,6 +908,7 @@ mod tests {
         });
     }
 
+    /// Confirms that values set during a block persist after finalization.
     #[test]
     fn value_should_persist_through_block_lifecycle() {
         let mut ext = sp_io::TestExternalities::default();
@@ -773,6 +932,7 @@ mod tests {
             assert_eq!(stored, 2025);
         });
     }
+    /// Ensures `Call::SetValue` is accepted by the transaction validation logic.
     #[test]
     fn validate_transaction_should_accept_set_value() {
         let mut ext = sp_io::TestExternalities::default();
@@ -786,6 +946,7 @@ mod tests {
             assert!(result.is_ok());
         });
     }
+    /// Validates that a block with no extrinsics has an empty extrinsics root.
     #[test]
     fn finalize_block_without_extrinsics_should_have_empty_root() {
         let mut ext = sp_io::TestExternalities::default();
@@ -806,6 +967,7 @@ mod tests {
             assert_eq!(finalized.extrinsics_root, expected_root);
         });
     }
+    /// Confirms that account nonce keys are constructed with the correct prefix.
     #[test]
     fn account_nonce_key_should_be_prefixed_correctly() {
         let account = AccountId::from([9u8; 32]);
