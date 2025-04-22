@@ -2,7 +2,7 @@
 
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-
+extern crate alloc;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::prelude::vec;
@@ -12,11 +12,11 @@ use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::ExtrinsicInclusionMode;
 use sp_runtime::Vec;
 use sp_runtime::{
-    create_runtime_str,
+   
     generic::{self},
     impl_opaque_keys,
     traits::{
-        BlakeTwo256, Block as BlockT, Extrinsic, Hash, MaybeSerialize, MaybeSerializeDeserialize,
+        BlakeTwo256, Block as BlockT, Extrinsic, Hash, 
     },
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -24,6 +24,7 @@ use sp_runtime::{
     },
     ApplyExtrinsicResult, BoundToRuntimeAppPublic,
 };
+use alloc::borrow::Cow;
 #[cfg(feature = "std")]
 use sp_storage::well_known_keys;
 use sp_version::StateVersion;
@@ -31,7 +32,7 @@ use sp_version::StateVersion;
 #[cfg(any(feature = "std", test))]
 use sp_runtime::{BuildStorage, Storage};
 
-use sp_core::{hexdisplay::HexDisplay, OpaqueMetadata, H256};
+use sp_core::{ OpaqueMetadata, H256};
 
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
@@ -78,8 +79,8 @@ pub mod opaque {
 /// This runtime version.
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("frameless-runtime"),
-    impl_name: create_runtime_str!("frameless-runtime"),
+    spec_name: Cow::Borrowed("frameless-runtime"),
+    impl_name: Cow::Borrowed("frameless-runtime"),
     authoring_version: 1,
     spec_version: 1,
     impl_version: 1,
@@ -129,7 +130,9 @@ pub enum Call {
     Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
 )]
 
-pub struct BasicExtrinsic(Call);
+pub struct BasicExtrinsic {
+    pub function: Call,
+}
 
 #[cfg(test)]
 impl BasicExtrinsic {
@@ -143,7 +146,7 @@ impl Extrinsic for BasicExtrinsic {
     type SignaturePayload = ();
 
     fn new(data: Self::Call, _: Option<Self::SignaturePayload>) -> Option<Self> {
-        Some(Self(data))
+        Some(Self { function: data })
     }
 }
 
@@ -174,19 +177,19 @@ pub struct Runtime;
 type DispatchResult = Result<(), ()>;
 
 impl Runtime {
-    fn print_state() {
-        let mut key = vec![];
-        while let Some(next) = sp_io::storage::next_key(&key) {
-            let val = sp_io::storage::get(&next).unwrap().to_vec();
-            log::trace!(
-                target: LOG_TARGET,
-                "{} <=> {}",
-                HexDisplay::from(&next),
-                HexDisplay::from(&val)
-            );
-            key = next;
-        }
-    }
+    // fn print_state() {
+    //     let mut key = vec![];
+    //     while let Some(next) = sp_io::storage::next_key(&key) {
+    //         let val = sp_io::storage::get(&next).unwrap().to_vec();
+    //         log::trace!(
+    //             target: LOG_TARGET,
+    //             "{} <=> {}",
+    //             HexDisplay::from(&next),
+    //             HexDisplay::from(&val)
+    //         );
+    //         key = next;
+    //     }
+    // }
 
     fn get_state<T: Decode>(key: &[u8]) -> Option<T> {
         sp_io::storage::get(key).and_then(|d| T::decode(&mut &*d).ok())
@@ -216,7 +219,7 @@ impl Runtime {
     fn dispatch_extrinsic(ext: BasicExtrinsic) -> DispatchResult {
         log::debug!(target: LOG_TARGET, "dispatching {:?}", ext);
 
-        match ext.0 {
+        match ext.function {
             Call::Foo => {
                 log::info!(target: LOG_TARGET, "Foo called");
             }
@@ -245,8 +248,7 @@ impl Runtime {
         // and make sure to _remove_ it.
         sp_io::storage::clear(&HEADER_KEY);
 
-        // This print is only for logging and debugging. Remove it.
-        Runtime::print_state();
+      
 
         let raw_state_root = &sp_io::storage::root(VERSION.state_version())[..];
         let state_root = sp_core::H256::decode(&mut &raw_state_root[..]).unwrap();
@@ -269,7 +271,7 @@ impl Runtime {
         // check state root
         let raw_state_root = &sp_io::storage::root(StateVersion::V0)[..];
         let state_root = H256::decode(&mut &raw_state_root[..]).unwrap();
-        Self::print_state();
+      
         assert_eq!(block.header.state_root, state_root);
 
         // check extrinsics root.
@@ -283,14 +285,27 @@ impl Runtime {
         assert_eq!(block.header.extrinsics_root, extrinsics_root);
     }
 
-    fn do_apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
-        info!(target: LOG_TARGET, "Entering apply_extrinsic: {:?}", extrinsic);
-
-        Self::dispatch_extrinsic(extrinsic)
-            .map_err(|_| TransactionValidityError::Invalid(InvalidTransaction::Custom(0)))?;
-
-        Ok(Ok(()))
-    }
+    pub(crate) fn do_apply_extrinsic(ext: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+		let dispatch_outcome = match ext.clone().function {
+			Call::Foo => {
+				log::info!(target: LOG_TARGET, "Foo called");
+				Ok(())
+			},
+			Call::SetValue(v) => {
+				log::info!(target: LOG_TARGET, "SetValue({}) called", v);
+				sp_io::storage::set(VALUE_KEY, &v.encode());
+				Ok(())
+			},
+		};
+	
+		log::debug!(target: LOG_TARGET, "dispatched {:?}, outcome = {:?}", ext, dispatch_outcome);
+	
+		Self::mutate_state::<Vec<Vec<u8>>>(EXTRINSICS_KEY, |current| {
+			current.push(ext.encode());
+		});
+	
+		dispatch_outcome.map(Ok)
+	}
 
     fn do_validate_transaction(
         source: TransactionSource,
@@ -307,7 +322,7 @@ impl Runtime {
 
         // we don't know how to validate this -- It should be fine??
 
-        let data = tx.0;
+        let data = tx.function;
         Ok(ValidTransaction {
             provides: vec![data.encode()],
             ..Default::default()
@@ -333,34 +348,12 @@ impl Runtime {
 
     pub(crate) fn do_get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
         match id {
-            Some(preset_id) => {
-                if preset_id == "local_testnet" {
-                    Some(
-                        serde_json::to_string(&RuntimeGenesis { value: 42 * 2 })
-                            .unwrap()
-                            .as_bytes()
-                            .to_vec(),
-                    )
-                } else if preset_id == "development" {
-                    Some(
-                        serde_json::to_string(&RuntimeGenesis { value: 42 * 2 })
-                            .unwrap()
-                            .as_bytes()
-                            .to_vec(),
-                    )
-                } else {
-                    None
-                }
-            }
-
-            // none indicates the default preset.
-            None => Some(
-                serde_json::to_string(&RuntimeGenesis { value: 42 })
-                    .unwrap()
-                    .as_bytes()
-                    .to_vec(),
-            ),
-        }
+			Some(preset_id) if preset_id == "local_testnet" || preset_id == "development" => {
+				Some(serde_json::to_vec(&RuntimeGenesis { value: 42*2 }).unwrap())
+			}
+			None => Some(serde_json::to_vec(&RuntimeGenesis { value: 42 }).unwrap()),
+			_ => None,
+		}
     }
     pub(crate) fn do_preset_names() -> Vec<sp_genesis_builder::PresetId> {
         vec!["special-preset-1".into()]
@@ -518,7 +511,7 @@ impl_runtime_apis! {
     impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
         fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
             let runtime_genesis: RuntimeGenesis = serde_json::from_slice(&config)
-                .map_err(|e| sp_runtime::create_runtime_str!("Invalid JSON blob"))?;
+			.map_err(|_e| Cow::Borrowed("Invalid JSON blob"))?;
             info!(target: LOG_TARGET, "Entering build_state: {:?}", runtime_genesis);
             Self::do_build_state(runtime_genesis)
         }
@@ -583,7 +576,7 @@ mod tests {
     fn should_apply_valid_extrinsic() {
         let mut ext = TestExternalities::default();
         ext.execute_with(|| {
-            let ext = BasicExtrinsic(Call::Foo);
+            let ext = BasicExtrinsic { function: Call::Foo };
             let result = Runtime::do_apply_extrinsic(ext);
             assert!(result.is_ok());
         });
@@ -604,7 +597,7 @@ mod tests {
     fn should_validate_transaction() {
         let mut ext = TestExternalities::default();
         ext.execute_with(|| {
-            let tx = BasicExtrinsic(Call::Foo);
+            let tx = BasicExtrinsic { function: Call::Foo };
             let result = Runtime::do_validate_transaction(
                 TransactionSource::Local,
                 tx,
@@ -693,7 +686,7 @@ mod tests {
     fn set_value_call_should_store_value() {
         let mut ext = sp_io::TestExternalities::default();
         ext.execute_with(|| {
-            let ext = BasicExtrinsic(Call::SetValue(1234));
+            let ext = BasicExtrinsic { function: Call::SetValue(1234) };
             let result = Runtime::do_apply_extrinsic(ext);
             assert!(result.is_ok());
 
@@ -715,7 +708,7 @@ mod tests {
             );
             Runtime::do_initialize_block(&header);
 
-            let extrinsic = BasicExtrinsic(Call::SetValue(2025));
+            let extrinsic = BasicExtrinsic { function: Call::SetValue(2025) };
             assert!(Runtime::do_apply_extrinsic(extrinsic).is_ok());
 
             let finalized = Runtime::do_finalize_block();
@@ -729,7 +722,7 @@ mod tests {
     fn validate_transaction_should_accept_set_value() {
         let mut ext = sp_io::TestExternalities::default();
         ext.execute_with(|| {
-            let tx = BasicExtrinsic(Call::SetValue(7));
+            let tx = BasicExtrinsic { function: Call::SetValue(7) };
             let result = Runtime::do_validate_transaction(
                 TransactionSource::External,
                 tx,
