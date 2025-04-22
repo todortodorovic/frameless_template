@@ -514,3 +514,162 @@ impl_runtime_apis! {
 	}
 }
 
+
+
+
+
+
+
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use sp_io::TestExternalities;
+	use sp_runtime::traits::Header; // dodaj ovu liniju unutar mod tests
+	#[test]
+	fn account_nonce_should_start_at_zero() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			let account = AccountId::from([1u8; 32]);
+			let nonce = Runtime::account_nonce_of(&account);
+			assert_eq!(nonce, 0);
+		});
+	}
+
+	#[test]
+	fn mutate_state_should_change_nonce() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			let account = AccountId::from([2u8; 32]);
+			let key = Runtime::account_nonce_key(&account);
+			Runtime::mutate_state::<Nonce>(&key, |n| *n += 5);
+			let nonce = Runtime::account_nonce_of(&account);
+			assert_eq!(nonce, 5);
+		});
+	}
+	#[test]
+fn block_lifecycle_should_store_and_finalize_header() {
+	let mut ext = TestExternalities::default();
+	ext.execute_with(|| {
+		let header = Header::new(
+			1,
+			Default::default(),
+			Default::default(),
+			Default::default(),
+			Default::default(),
+		);
+
+		Runtime::do_initialize_block(&header);
+		let finalized = Runtime::do_finalize_block();
+
+		assert_eq!(finalized.number, 1);
+	});
+}
+#[test]
+fn should_apply_valid_extrinsic() {
+	let mut ext = TestExternalities::default();
+	ext.execute_with(|| {
+		let ext = BasicExtrinsic(Call::Foo);
+		let result = Runtime::do_apply_extrinsic(ext);
+		assert!(result.is_ok());
+	});
+}
+#[test]
+fn should_build_state_with_value() {
+	let mut ext = TestExternalities::default();
+	ext.execute_with(|| {
+		let genesis = RuntimeGenesis { value: 1337 };
+		Runtime::do_build_state(genesis).unwrap();
+
+		let stored: u32 = Runtime::get_state(VALUE_KEY).unwrap();
+		assert_eq!(stored, 1337);
+	});
+}
+
+	#[test]
+	fn should_validate_transaction() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			let tx = BasicExtrinsic(Call::Foo);
+			let result = Runtime::do_validate_transaction(
+				TransactionSource::Local,
+				tx,
+				H256::repeat_byte(1),
+			);
+			assert!(result.is_ok());
+		});
+	}
+
+	#[test]
+	fn should_return_default_inherent_extrinsics() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			let inherents = Runtime::do_inherent_extrinsics(sp_inherents::InherentData::default());
+			assert_eq!(inherents.len(), 0);
+		});
+	}
+
+	#[test]
+	fn should_return_default_check_inherents() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			let header = Header::new(
+				1,
+				Default::default(),
+				Default::default(),
+				Default::default(),
+				Default::default(),
+			);
+			Runtime::do_initialize_block(&header);
+			let block = Block { header, extrinsics: vec![] };
+			let result = Runtime::do_check_inherents(block, sp_inherents::InherentData::default());
+			assert!(result.ok());
+		});
+	}
+
+	#[test]
+	fn should_return_presets_correctly() {
+		let development = Some("development".into());
+		let local = Some("local_testnet".into());
+		let none = None;
+
+		assert!(Runtime::do_get_preset(&development).is_some());
+		assert!(Runtime::do_get_preset(&local).is_some());
+		assert!(Runtime::do_get_preset(&none).is_some());
+		assert!(Runtime::do_get_preset(&Some("nonexistent".into())).is_none());
+
+		let presets = Runtime::do_preset_names();
+		assert_eq!(presets, vec!["special-preset-1"]);
+	}
+
+
+	#[test]
+	fn finalize_block_should_set_correct_state_root() {
+		let mut ext = TestExternalities::default();
+		ext.execute_with(|| {
+			// Prepare and initialize header
+			let header = Header::new(
+				1,
+				Default::default(),
+				Default::default(),
+				Default::default(),
+				Default::default(),
+			);
+			Runtime::do_initialize_block(&header);
+
+			// Simulate some state change
+			sp_io::storage::set(b"some_key", b"some_value");
+
+			// Finalize block and fetch new header
+			let finalized_header = Runtime::do_finalize_block();
+
+			// Calculate expected state root
+			let expected_root = {
+				let raw = &sp_io::storage::root(StateVersion::V0)[..];
+				H256::decode(&mut &raw[..]).unwrap()
+			};
+
+			assert_eq!(finalized_header.state_root, expected_root);
+		});
+	}
+}

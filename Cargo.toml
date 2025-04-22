@@ -11,8 +11,7 @@ sp-io = { version = "=39.0.0", default-features = false }
 
 [profile.release]
 panic = "abort"
-codegen-units = 1
-lto = true
+
 
 [profile.dev]
 panic = "abort"
