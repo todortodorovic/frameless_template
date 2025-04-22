@@ -116,6 +116,7 @@ pub type Nonce = u32;
 )]
 pub enum Call {
 	Foo,
+	SetValue(u32),
 }
 #[derive(
 	Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize,
@@ -208,11 +209,20 @@ impl Runtime {
 	fn dispatch_extrinsic(ext: BasicExtrinsic) -> DispatchResult {
 		log::debug!(target: LOG_TARGET, "dispatching {:?}", ext);
 
-		// execute it
-		// TODO..
+		match ext.0 {
+			Call::Foo => {
+				log::info!(target: LOG_TARGET, "Foo called");
+			},
+			Call::SetValue(v) => {
+				log::info!(target: LOG_TARGET, "SetValue({}) called", v);
+				sp_io::storage::set(VALUE_KEY, &v.encode());
+			},
+		}
 
 		Ok(())
 	}
+
+
 
 	pub(crate) fn do_initialize_block(
 		header: &<Block as BlockT>::Header,
@@ -676,4 +686,67 @@ fn should_build_state_with_value() {
 			assert_eq!(finalized_header.state_root, expected_root);
 		});
 	}
+
+	#[test]
+	fn set_value_call_should_store_value() {
+		let mut ext = sp_io::TestExternalities::default();
+		ext.execute_with(|| {
+			let ext = BasicExtrinsic(Call::SetValue(1234));
+			let result = Runtime::do_apply_extrinsic(ext);
+			assert!(result.is_ok());
+
+			let stored: u32 = Runtime::get_state(VALUE_KEY).unwrap();
+			assert_eq!(stored, 1234);
+		});
+	}
+
+	#[test]
+fn value_should_persist_through_block_lifecycle() {
+	let mut ext = sp_io::TestExternalities::default();
+	ext.execute_with(|| {
+		let header = Header::new(1, Default::default(), Default::default(), Default::default(), Default::default());
+		Runtime::do_initialize_block(&header);
+
+		let extrinsic = BasicExtrinsic(Call::SetValue(2025));
+		assert!(Runtime::do_apply_extrinsic(extrinsic).is_ok());
+
+		let finalized = Runtime::do_finalize_block();
+		assert_eq!(finalized.number, 1);
+
+		let stored: u32 = Runtime::get_state(VALUE_KEY).unwrap();
+		assert_eq!(stored, 2025);
+	});
+}
+#[test]
+fn validate_transaction_should_accept_set_value() {
+	let mut ext = sp_io::TestExternalities::default();
+	ext.execute_with(|| {
+		let tx = BasicExtrinsic(Call::SetValue(7));
+		let result = Runtime::do_validate_transaction(TransactionSource::External, tx, H256::repeat_byte(2));
+		assert!(result.is_ok());
+	});
+}
+#[test]
+fn finalize_block_without_extrinsics_should_have_empty_root() {
+	let mut ext = sp_io::TestExternalities::default();
+	ext.execute_with(|| {
+		let header = Header::new(42, Default::default(), Default::default(), Default::default(), Default::default());
+		Runtime::do_initialize_block(&header);
+
+		let finalized = Runtime::do_finalize_block();
+
+		let expected_root = BlakeTwo256::ordered_trie_root(Vec::<Vec<u8>>::new(), StateVersion::V0);
+		assert_eq!(finalized.extrinsics_root, expected_root);
+	});
+}
+#[test]
+fn account_nonce_key_should_be_prefixed_correctly() {
+	let account = AccountId::from([9u8; 32]);
+	let key = Runtime::account_nonce_key(&account);
+
+	let mut expected = Runtime::ACCOUNT_NONCE_PREFIX.to_vec();
+	expected.extend(account.encode());
+
+	assert_eq!(key, expected);
+}
 }
