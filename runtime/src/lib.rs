@@ -223,23 +223,27 @@ impl Runtime {
 	}
 
 
-	fn do_finalize_block() -> <Block as BlockT>::Header {
+	pub(crate) fn do_finalize_block() -> <Block as BlockT>::Header {
+		// fetch the header that was given to us at the beginning of the block.
 		let mut header = Self::get_state::<<Block as BlockT>::Header>(HEADER_KEY)
 			.expect("We initialized with header, it never got mutated, qed");
 
-		// the header itself contains the state root, so it cannot be inside the state (circular
-		// dependency..). Make sure in execute block path we have the same rule.
+		// and make sure to _remove_ it.
 		sp_io::storage::clear(&HEADER_KEY);
 
-		let raw_state_root = &sp_io::storage::root(sp_core::storage::StateVersion::V0)[..];
-		header.state_root = sp_core::H256::decode(&mut &raw_state_root[..]).unwrap();
+		// This print is only for logging and debugging. Remove it.
+		Runtime::print_state();
 
-		// header.extrinsics_root = ??;
+		let raw_state_root = &sp_io::storage::root(VERSION.state_version())[..];
+		let state_root = sp_core::H256::decode(&mut &raw_state_root[..]).unwrap();
 
-		info!(target: LOG_TARGET, "finalizing block {:?}", header);
+		let extrinsics = Self::get_state::<Vec<Vec<u8>>>(EXTRINSICS_KEY).unwrap_or_default();
+		let extrinsics_root = BlakeTwo256::ordered_trie_root(extrinsics, Default::default());
+
+		header.extrinsics_root = extrinsics_root;
+		header.state_root = state_root;
 		header
 	}
-
 	fn do_execute_block(block: Block) {
 		info!(target: LOG_TARGET, "Entering execute_block. block: {:?}", block);
 
