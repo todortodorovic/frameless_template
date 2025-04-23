@@ -352,7 +352,13 @@ impl Runtime {
         sp_io::storage::clear(&HEADER_KEY);
 
         let raw_state_root = &sp_io::storage::root(VERSION.state_version())[..];
-        let state_root = sp_core::H256::decode(&mut &raw_state_root[..]).unwrap();
+		let state_root = match sp_core::H256::decode(&mut &raw_state_root[..]) {
+			Ok(root) => root,
+			Err(_) => {
+				log::error!(target: LOG_TARGET, "Failed to decode state root.");
+				H256::default() 
+			}
+		};
 
         let extrinsics = Self::get_state::<Vec<Vec<u8>>>(EXTRINSICS_KEY).unwrap_or_default();
         let extrinsics_root = BlakeTwo256::ordered_trie_root(extrinsics, Default::default());
@@ -377,7 +383,13 @@ impl Runtime {
 
         // check state root
         let raw_state_root = &sp_io::storage::root(StateVersion::V0)[..];
-        let state_root = H256::decode(&mut &raw_state_root[..]).unwrap();
+		let state_root = match H256::decode(&mut &raw_state_root[..]) {
+            Ok(root) => root,
+            Err(_) => {
+                log::error!(target: LOG_TARGET, "Failed to decode state root in execute_block");
+                H256::default() 
+            }
+        };
       
         assert_eq!(block.header.state_root, state_root);
 
@@ -476,14 +488,20 @@ impl Runtime {
     ///
     /// Used by tools like `sp-genesis-builder` for preset selection.
     pub(crate) fn do_get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
-        match id {
-			Some(preset_id) if preset_id == "local_testnet" || preset_id == "development" => {
-				Some(serde_json::to_vec(&RuntimeGenesis { value: 42*2 }).unwrap())
+		let value = match id {
+			Some(preset_id) if preset_id == "local_testnet" || preset_id == "development" => 84,
+			None => 42,
+			_ => return None,
+		};
+	
+		match serde_json::to_vec(&RuntimeGenesis { value }) {
+			Ok(data) => Some(data),
+			Err(e) => {
+				log::error!(target: LOG_TARGET, "Failed to serialize RuntimeGenesis: {:?}", e);
+				None
 			}
-			None => Some(serde_json::to_vec(&RuntimeGenesis { value: 42 }).unwrap()),
-			_ => None,
 		}
-    }
+	}
 
     /// Returns a list of available preset IDs supported by this runtime.
     ///

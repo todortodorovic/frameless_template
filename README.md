@@ -59,6 +59,57 @@ cargo build --release
 ./target/release/solochain-template-node --dev
 ```
 
+### Example: Submit and Read Extrinsic
+
+Submit a `SetValue(1337)` extrinsic:
+
+```bash
+curl -H "Content-Type: application/json" -d '{
+  "jsonrpc":"2.0",
+  "id":1,
+  "method":"author_submitExtrinsic",
+  "params":["0x0139050000"]
+}' http://localhost:9944
+```
+
+Sample output:
+```json
+{
+  "jsonrpc":"2.0",
+  "id":1,
+  "result":"0x3352fa68933b84048e249fae0502d11acd1379404ec37943b3caf00ed52d09f3"
+}
+```
+
+Query the stored value (`value` key):
+
+```bash
+curl -H "Content-Type: application/json" -d '{
+  "jsonrpc":"2.0",
+  "id":1,
+  "method":"state_getStorage",
+  "params":["0x76616c7565"]
+}' http://localhost:9944
+```
+
+Sample output:
+```json
+{
+  "jsonrpc":"2.0",
+  "id":1,
+  "result":"0x39050000"
+}
+```
+#### Explanation of Values
+
+- `0x0139050000` – SCALE-encoded extrinsic for `SetValue(1337)`:
+  - `01` → Extrinsic version (signed = false)
+  - `39 05 00 00` → `1337` in little-endian
+
+- `0x76616c7565` – Hex encoding of the key `"value"` (used in storage)
+
+- `0x39050000` – SCALE-encoded value `1337` (in little-endian)
+
 ---
 
 ##  Runtime Breakdown
