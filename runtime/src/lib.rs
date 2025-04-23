@@ -130,7 +130,6 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 ///
 /// Used by the native Substrate client to ensure the compiled runtime is compatible
 /// with the WASM runtime used on-chain.
-
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
     NativeVersion {
@@ -217,7 +216,6 @@ impl Extrinsic for BasicExtrinsic {
 }
 
 /// Trait implementation for mapping the opaque node block type.
-
 impl sp_runtime::traits::GetNodeBlockType for Runtime {
     type NodeBlock = opaque::Block;
 }
@@ -237,7 +235,7 @@ const BLOCK_TIME: u64 = 3000;
 /// HEADER_KEY: stores current block header.
 /// EXTRINSICS_KEY: stores list of extrinsics.
 /// VALUE_KEY: used by `SetValue` to store a `u32` in state.
-const HEADER_KEY: &[u8] = b"header"; // 686561646572
+const HEADER_KEY: &[u8] = b"header"; 
 const EXTRINSICS_KEY: &[u8] = b"extrinsics";
 const VALUE_KEY: &[u8] = b"value";
 
@@ -401,25 +399,17 @@ impl Runtime {
     ///
     /// Returns `Ok(Ok(()))` on success, or propagates any dispatch error.
     pub(crate) fn do_apply_extrinsic(ext: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
-		let dispatch_outcome = match ext.clone().function {
-			Call::Foo => {
-				log::info!(target: LOG_TARGET, "Foo called");
-				Ok(())
-			},
-			Call::SetValue(v) => {
-				log::info!(target: LOG_TARGET, "SetValue({}) called", v);
-				sp_io::storage::set(VALUE_KEY, &v.encode());
-				Ok(())
-			},
-		};
-	
+		let dispatch_outcome = Runtime::dispatch_extrinsic(ext.clone());
+
 		log::debug!(target: LOG_TARGET, "dispatched {:?}, outcome = {:?}", ext, dispatch_outcome);
 	
 		Self::mutate_state::<Vec<Vec<u8>>>(EXTRINSICS_KEY, |current| {
 			current.push(ext.encode());
 		});
 	
-		dispatch_outcome.map(Ok)
+		dispatch_outcome
+    		.map(Ok)
+    		.map_err(|_| TransactionValidityError::Invalid(InvalidTransaction::Custom(0)))
 	}
     /// Performs basic validation of an incoming transaction before it's accepted into the transaction pool.
     ///
@@ -551,7 +541,6 @@ impl_runtime_apis! {
         }
     }
 
-    // https://substrate.dev/rustdocs/master/sc_block_builder/trait.BlockBuilderApi.html
     /// Block builder API implementation.
     ///
     /// Handles extrinsic application, block finalization, and inherent logic.
@@ -644,7 +633,7 @@ impl_runtime_apis! {
         }
 
         fn authorities() -> Vec<AuraId> {
-            // Hardcoded authority key for --dev mode
+            // Hardcoded authority key 
             let raw_key: [u8; 32] = hex_literal::hex!(
                 "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
             );
