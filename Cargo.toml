@@ -3,6 +3,15 @@ members = [
     "node",
     "runtime",
 ]
+resolver = "2"
+
+# This helps ensure all dependencies use the same version of sp-io
+[workspace.dependencies]
+sp-io = { version = "=39.0.0", default-features = false }
 
 [profile.release]
-panic = "unwind"
+panic = "abort"
+
+
+[profile.dev]
+panic = "abort"
