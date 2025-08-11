@@ -1,69 +1,58 @@
-# Frameless Substrate Template
+# Frameless Template
 
-A minimal Substrate blockchain template built **without FRAME**, using only the core components of the Polkadot SDK. This project demonstrates how to build a working blockchain runtime by manually implementing all runtime logic and required APIs — ideal for education, experimentation, and deep understanding of Substrate internals.
+A **learning-focused template** for building Substrate runtimes without FRAME. This template is designed to help you understand the fundamentals of blockchain runtime development through hands-on examples.
 
----
+## 🎯 **What is Frameless Template?**
 
-##  Overview
+### **Traditional Substrate Development**
+Most Substrate projects use **FRAME** - a framework that provides pre-built modules (pallets) for common blockchain functionality like accounts, balances, staking, etc. FRAME is powerful but can be overwhelming for beginners because it abstracts away many fundamental concepts.
 
-This repository showcases a complete frameless runtime, replacing all FRAME-based abstractions with handcrafted logic. Instead of using predefined pallets and macros, it manually defines:
+### **What Makes This Template "Frameless"?**
+This template **doesn't use FRAME at all**. Instead, it builds a Substrate runtime from scratch using only the core Substrate primitives. This means:
 
-- Runtime versioning, state management, and extrinsics
-- Block initialization/finalization flow
-- Consensus key handling (Aura + Grandpa)
-- Full runtime API trait implementations
+- **No pallets** - you write everything yourself
+- **No macros** - you understand every line of code
+- **No abstractions** - you see exactly how blockchain logic works
+- **Full control** - you decide how to implement every feature
 
----
+### **Why "Frameless" is Better for Learning**
+1. **Fundamentals First**: You learn how Substrate actually works under the hood
+2. **No Magic**: Every function, every storage operation, every call is visible
+3. **Custom Everything**: You can implement features exactly how you want
+4. **Deep Understanding**: You'll understand FRAME better after using this template
+5. **Real Runtime**: This is a real, working blockchain runtime, not just examples
 
-##  Why Frameless?
+### **What You're Actually Building**
+- **Runtime Logic**: The core business logic of your blockchain
+- **Storage Management**: How data is stored and retrieved
+- **Call Handling**: How external requests are processed
+- **State Management**: How the blockchain state changes over time
+- **Block Processing**: How blocks are created and finalized
 
-- **Simplicity** – fewer abstractions make the core logic easier to follow
-- **Control** – complete ownership over storage, execution flow, and logic
-- **Educational** – ideal for developers learning how Substrate works at the lowest level
-- **Lightweight** – minimal, portable runtime setup
+### **Perfect For**
+- **Beginners** who want to understand blockchain fundamentals
+- **Developers** who want full control over their runtime
+- **Students** learning about blockchain architecture
+- **Anyone** who wants to see how Substrate works without FRAME
 
----
+### **Not For**
+- **Production applications** (use FRAME for that)
+- **Quick prototypes** (FRAME is faster for simple things)
+- **Complex DeFi protocols** (FRAME has battle-tested pallets)
 
-##  Features
+## 🚀 **Quick Start Guide**
 
--  Full implementation of required Substrate runtime APIs
--  Minimalist storage with `get_state` / `mutate_state` helpers
--  AURA/GRANDPA consensus with hardcoded authorities for development
--  Custom extrinsic format with basic transaction validation
--  Genesis configuration system with support for JSON presets
--  Comprehensive test coverage
--  Supports Rustdoc documentation generation
-
----
-
-##  Prerequisites
-
-- Rust (latest **stable** toolchain) – install via [rustup](https://rustup.rs)
-- Standard build tools (e.g. clang, make, etc.)
-
----
-
-##  Getting Started
-
-### Clone & Build
-
+### Step 1: Get it running
 ```bash
 git clone <repository-url>
 cd frameless_template
 cargo build --release
-```
-
-### Run the Node
-
-```bash
 ./target/release/solochain-template-node --dev
 ```
 
-### Example: Submit and Read Extrinsic
-
-Submit a `SetValue(1337)` extrinsic:
-
+### Step 2: Test basic functionality
 ```bash
+# Test the basic SetValue call
 curl -H "Content-Type: application/json" -d '{
   "jsonrpc":"2.0",
   "id":1,
@@ -72,129 +61,61 @@ curl -H "Content-Type: application/json" -d '{
 }' http://localhost:9944
 ```
 
-Sample output:
-```json
-{
-  "jsonrpc":"2.0",
-  "id":1,
-  "result":"0x3352fa68933b84048e249fae0502d11acd1379404ec37943b3caf00ed52d09f3"
-}
-```
+## 📚 **Learning Path - Examples**
 
-Query the stored value (`value` key):
+We've created a series of examples that guide you from basic concepts to more advanced functionality:
 
-```bash
-curl -H "Content-Type: application/json" -d '{
-  "jsonrpc":"2.0",
-  "id":1,
-  "method":"state_getStorage",
-  "params":["0x76616c7565"]
-}' http://localhost:9944
-```
+### **Example 1: Hello World** ✅
+- **Goal**: Add your first custom call to the runtime
+- **Learn**: Basic runtime development, rebuild workflow
+- **What you'll do**: Add a simple call that stores a message
 
-Sample output:
-```json
-{
-  "jsonrpc":"2.0",
-  "id":1,
-  "result":"0x39050000"
-}
-```
-#### Explanation of Values
+### **Example 2: Simple Counter** ✅
+- **Goal**: Build a counter with increment/decrement/reset
+- **Learn**: Working with existing storage values, helper functions
+- **What you'll do**: Create a counter that persists across blocks
 
-- `0x0139050000` – SCALE-encoded extrinsic for `SetValue(1337)`:
-  - `01` → Extrinsic version (signed = false)
-  - `39 05 00 00` → `1337` in little-endian
+### **Example 3: Custom Storage Types** ✅
+- **Goal**: Store different data types (String, u32, bool)
+- **Learn**: Multiple storage types, storage key management
+- **What you'll do**: Store and retrieve different data types
 
-- `0x76616c7565` – Hex encoding of the key `"value"` (used in storage)
+### **Example 4: Simple Token System** ✅
+- **Goal**: Build a basic token system with transfers and balance tracking
+- **Learn**: Account management, balance tracking, transfer logic
+- **What you'll do**: Create accounts, mint tokens, transfer between accounts
 
-- `0x39050000` – SCALE-encoded value `1337` (in little-endian)
+## 🔧 **How to Use This Template**
 
----
+### **For Beginners**
+1. Start with **Example 1: Hello World**
+2. Follow each example step by step
+3. Make small changes and see immediate results
+4. Use the examples as a foundation for your own ideas
 
-##  Runtime Breakdown
+### **For Experienced Developers**
+1. Use the examples as reference implementations
+2. Modify and extend the functionality
+3. Add your own custom calls and logic
+4. Use this as a starting point for your own projects
 
-The runtime logic lives in [`runtime/src/lib.rs`](runtime/src/lib.rs) and implements:
+## 🎓 **What You'll Learn**
 
-- `Core` – runtime versioning, full block execution
-- `BlockBuilder` – block construction and finalization
-- `TaggedTransactionQueue` – transaction validation
-- `Metadata` – runtime metadata exposure
-- `OffchainWorkerApi` – offchain entrypoint (placeholder)
-- `SessionKeys` – session key generation for validators
-- `AuraApi` / `GrandpaApi` – consensus authority configuration
-- `AccountNonceApi` – per-account transaction nonce tracking
-- `GenesisBuilder` – custom genesis state definition
+- **Runtime Development**: How to build Substrate runtimes without FRAME
+- **Storage Management**: How to store and retrieve data
+- **Call Dispatching**: How to handle different types of calls
+- **State Management**: How to manage runtime state
+- **Testing**: How to test your changes and see results
+- **Debugging**: How to troubleshoot and fix issues
 
----
+## 🎯 **Why This Template?**
 
-###  Storage System
-
-- `get_state<T>(key)` – Reads and decodes a value from storage
-- `mutate_state<T>(key, fn)` – Reads, mutates, and re-stores a value
-- Account nonces are stored with prefixed keys
+- **Learning Focused**: Designed for education, not production
+- **Step by Step**: Progressive complexity from basic to advanced
+- **Immediate Feedback**: See results of your changes right away
+- **Well Documented**: Each example explains what and why
+- **Extensible**: Easy to modify and extend
 
 ---
 
-###  Custom Extrinsics
-
-```rust
-enum Call {
-    Foo,               // No-op call
-    SetValue(u32),     // Stores value into runtime state
-}
-```
-
-Extrinsics are submitted using a lightweight `BasicExtrinsic` struct.
-
----
-
-##  Testing
-
-Run unit tests:
-
-```bash
-cargo test
-```
-
-Covered scenarios include:
-- State reads/writes
-- Extrinsic dispatch
-- Block initialization & finalization
-- Genesis preset loading
-- Nonce tracking and validation logic
-
----
-
-##  Generate Documentation
-
-You can build full HTML docs from the embedded Rustdoc comments using:
-
-```bash
-cargo doc --document-private-items --no-deps --open
-```
-
-This will open a browser with all public structs, enums, and functions fully documented.
-
----
-
-##  Who Is This For?
-
-This template is perfect for:
-- Developers curious about how Substrate works internally
-- Auditors and researchers seeking transparency
-- Educators and learners exploring blockchain concepts
-- Hackers experimenting with custom runtime logic
-
-
----
-
-## 📄 License
-
-Unlicense (Public Domain) – use freely for learning and building.
-
----
-
-##  Acknowledgements
-
-Based on the Polkadot SDK and Substrate framework by [Parity Technologies](https://www.parity.io/).
+**Ready to start learning? Begin with [Example 1: Hello World](examples/01-hello-world/)!** 
